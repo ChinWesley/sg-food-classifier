@@ -21,16 +21,16 @@ from PIL import Image
 
 # class folder name -> search queries (several queries = more variety)
 CLASSES = {
-    "chicken_rice": ["hainanese chicken rice", "singapore chicken rice hawker"],
-    "laksa": ["singapore laksa bowl", "katong laksa"],
-    "char_kway_teow": ["char kway teow singapore", "fried kway teow hawker"],
-    "nasi_lemak": ["nasi lemak singapore", "nasi lemak plate"],
-    "roti_prata": ["roti prata curry", "roti prata singapore"],
-    "satay": ["satay skewers peanut sauce", "singapore satay"],
-    "chilli_crab": ["singapore chilli crab", "chilli crab dish"],
-    "kaya_toast": ["kaya toast soft boiled eggs", "kaya butter toast singapore"],
-    "bak_chor_mee": ["bak chor mee", "minced meat noodles singapore"],
-    "hokkien_mee": ["singapore hokkien mee", "fried hokkien prawn mee"],
+    "chicken_rice": ["hainanese chicken rice", "singapore chicken rice hawker", "roasted chicken rice plate", "steamed chicken rice singapore"],
+    "laksa": ["singapore laksa bowl", "katong laksa", "curry laksa noodles", "laksa hawker centre"],
+    "char_kway_teow": ["char kway teow singapore", "fried kway teow hawker", "char kway teow plate", "char kway teow cockles"],
+    "nasi_lemak": ["nasi lemak singapore", "nasi lemak plate", "nasi lemak fried chicken", "nasi lemak sambal ikan bilis"],
+    "roti_prata": ["roti prata curry", "roti prata singapore", "roti canai curry", "plain prata egg prata"],
+    "satay": ["satay skewers peanut sauce", "singapore satay", "chicken satay plate", "lau pa sat satay"],
+    "chilli_crab": ["singapore chilli crab", "chilli crab dish", "chilli crab mantou", "chilli crab restaurant singapore"],
+    "kaya_toast": ["kaya toast soft boiled eggs", "kaya butter toast singapore", "ya kun kaya toast", "kaya toast kopi"],
+    "bak_chor_mee": ["bak chor mee", "minced meat noodles singapore", "bak chor mee dry", "tai hwa bak chor mee"],
+    "hokkien_mee": ["singapore hokkien mee", "fried hokkien prawn mee", "hokkien mee sambal lime", "hokkien prawn noodles hawker"],
 }
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -55,13 +55,15 @@ def save_image(url: str, out_dir: Path, seen: set[str]) -> bool:
         resp = requests.get(url, headers=HEADERS, timeout=10)
         resp.raise_for_status()
         digest = hashlib.md5(resp.content).hexdigest()
-        if digest in seen:
+        out_path = out_dir / f"{digest[:12]}.jpg"
+        if digest in seen or out_path.exists():
             return False
-        img = Image.open(io.BytesIO(resp.content)).convert("RGB")
+        img = Image.open(io.BytesIO(resp.content))
+        img = img.convert("RGBA").convert("RGB") if img.mode == "P" else img.convert("RGB")
         if min(img.size) < 150:  # skip thumbnails/icons
             return False
         img.thumbnail((MAX_SIDE, MAX_SIDE))
-        img.save(out_dir / f"{digest[:12]}.jpg", "JPEG", quality=90)
+        img.save(out_path, "JPEG", quality=90)
         seen.add(digest)
         return True
     except Exception:
@@ -86,7 +88,7 @@ def main():
 
         seen: set[str] = set()
         saved = existing
-        per_query = args.per_class // len(queries) + 40  # over-fetch; some URLs fail
+        per_query = 100  # over-fetch; some URLs fail
         for q in queries:
             for url in fetch_urls(q, per_query):
                 if saved >= args.per_class:
