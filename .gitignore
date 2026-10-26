@@ -3,3 +3,5 @@ data/
 __pycache__/
 *.pyc
 .gradio/
+space/model.keras
+space/examples/

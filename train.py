@@ -45,6 +45,15 @@ def load_datasets():
     return train_ds.prefetch(autotune), val_ds.prefetch(autotune), class_names
 
 
+def compute_class_weights(class_names):
+    """Weight each class inversely to its image count so small classes aren't ignored."""
+    counts = np.array([len(list((DATA_DIR / c).glob("*.jpg"))) for c in class_names])
+    weights = counts.sum() / (len(counts) * counts)
+    for c, n, w in zip(class_names, counts, weights):
+        print(f"  {c:<16} {n:>4} images  weight {w:.2f}")
+    return dict(enumerate(weights))
+
+
 def build_model(num_classes: int):
     augment = tf.keras.Sequential(
         [
@@ -122,14 +131,15 @@ def main():
 
     OUT_DIR.mkdir(exist_ok=True)
     train_ds, val_ds, class_names = load_datasets()
-    print("Classes:", class_names)
+    print("Classes:")
+    class_weight = compute_class_weights(class_names)
 
     model, base = build_model(len(class_names))
     early_stop = tf.keras.callbacks.EarlyStopping(patience=3, restore_best_weights=True)
 
     # Phase 1: train only the new classification head
     model.compile(optimizer=tf.keras.optimizers.Adam(1e-3), loss="sparse_categorical_crossentropy", metrics=["accuracy"])
-    h1 = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=[early_stop])
+    h1 = model.fit(train_ds, validation_data=val_ds, epochs=args.epochs, callbacks=[early_stop], class_weight=class_weight)
 
     # Phase 2: unfreeze the top of the base network and fine-tune with a small learning rate
     base.trainable = True
@@ -139,7 +149,7 @@ def main():
         if isinstance(layer, tf.keras.layers.BatchNormalization):
             layer.trainable = False
     model.compile(optimizer=tf.keras.optimizers.Adam(1e-5), loss="sparse_categorical_crossentropy", metrics=["accuracy"])
-    h2 = model.fit(train_ds, validation_data=val_ds, epochs=args.fine_tune_epochs, callbacks=[early_stop])
+    h2 = model.fit(train_ds, validation_data=val_ds, epochs=args.fine_tune_epochs, callbacks=[early_stop], class_weight=class_weight)
 
     loss, acc = model.evaluate(val_ds, verbose=0)
     print(f"\nValidation accuracy: {acc:.1%}")
