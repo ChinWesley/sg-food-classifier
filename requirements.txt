@@ -1,0 +1,7 @@
+tensorflow==2.21.0
+gradio==6.30.0
+ddgs==9.16.1
+requests
+pillow
+matplotlib
+huggingface_hub
